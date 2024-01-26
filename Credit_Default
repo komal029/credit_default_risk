@@ -1,0 +1,1097 @@
+{
+  "nbformat": 4,
+  "nbformat_minor": 0,
+  "metadata": {
+    "colab": {
+      "provenance": [],
+      "authorship_tag": "ABX9TyO9vVKMUrw/NXQ2CedWEn97",
+      "include_colab_link": true
+    },
+    "kernelspec": {
+      "name": "python3",
+      "display_name": "Python 3"
+    },
+    "language_info": {
+      "name": "python"
+    }
+  },
+  "cells": [
+    {
+      "cell_type": "markdown",
+      "metadata": {
+        "id": "view-in-github",
+        "colab_type": "text"
+      },
+      "source": [
+        "<a href=\"https://colab.research.google.com/github/komal029/credit_default_risk/blob/main/Credit_Default\" target=\"_parent\"><img src=\"https://colab.research.google.com/assets/colab-badge.svg\" alt=\"Open In Colab\"/></a>"
+      ]
+    },
+    {
+      "cell_type": "code",
+      "execution_count": 1,
+      "metadata": {
+        "id": "sG_5rpoNt0uz"
+      },
+      "outputs": [],
+      "source": [
+        "# Import the dependencies\n",
+        "import numpy as np\n",
+        "import pandas as pd\n",
+        "\n",
+        "from sklearn.preprocessing import LabelEncoder\n",
+        "\n",
+        "import os\n",
+        "import warnings\n",
+        "warnings.filterwarnings('ignore')\n",
+        "\n",
+        "import matplotlib.pyplot as plt\n",
+        "import seaborn as sns"
+      ]
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Read in Data\n",
+        "First, we can list all the available data files. There are a total of 9 files: 1 main file for training (with target) 1 main file for testing (without the tareget), 1 example submission file, and 6 other files containing additional information about each loan.\n",
+        "The training data has 307511 observations (each one a separate loan) and 122 features (variables) including the TARGET ( the label we want to predict)"
+      ],
+      "metadata": {
+        "id": "E9crKvAj_Nht"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train = pd.read_csv('../input/home-credit-default-risk/application_train.csv')\n",
+        "print('Training data shape : ', app_train.shape)\n",
+        "app_train.head()"
+      ],
+      "metadata": {
+        "id": "znPNB2cHt6fv"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Testing Data features\n",
+        "app_test = pd.read_csv('../input/home-credit-default-risk/application_test.csv')\n",
+        "print('Testing data shape:', app_test.shape)\n",
+        "app_test.head()"
+      ],
+      "metadata": {
+        "id": "ZWwRpoUUuDch"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# 1) Examine the Distribution of the Target Column¶\n",
+        "The target is what we are asked to predict: either a 0 for the loan was reapaid on time, or a 1 indicating the client had payment difficulties. We can first examine the number of loans falling into each category."
+      ],
+      "metadata": {
+        "id": "1ufRpKldBNxr"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['TARGET'].value_counts()"
+      ],
+      "metadata": {
+        "id": "cqhPkraxuDZI"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['TARGET'].astype(int).plot.hist()"
+      ],
+      "metadata": {
+        "id": "auZzzPWsuDWx"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "From this information, we see this is an imbalanced class problem. There are far more loans that were repaid on time than loans than are not repaid. Once we get into more sophisticated machine learning models, we can weight the calsses by their representation in the data to reflect this imbalance"
+      ],
+      "metadata": {
+        "id": "9EDbnJHgBWya"
+      }
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Examine Missing Values¶\n",
+        "Next we can look at the number and percentage of missing values in each column."
+      ],
+      "metadata": {
+        "id": "Le9LL9xFBudr"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Examine Missing Values\n",
+        "# function to calculate missing values by column\n",
+        "def missing_values_table(df):\n",
+        "    mis_val = df.isnull().sum()\n",
+        "\n",
+        "    # Percentage of missing valeus\n",
+        "    mis_val_percent = 100* df.isnull().sum() / len(df)\n",
+        "\n",
+        "    # make a table\n",
+        "    mis_val_table = pd.concat([mis_val, mis_val_percent], axis=1)\n",
+        "\n",
+        "    # Rename\n",
+        "    mis_val_table_ren_columns = mis_val_table.rename( columns = {\n",
+        "        0 : 'Missing Valeus', 1 :'% of Total Values'\n",
+        "    })\n",
+        "\n",
+        "    # Sort\n",
+        "    mis_val_table_ren_columns = mis_val_table_ren_columns[ mis_val_table_ren_columns.iloc[:,1] !=0].sort_values(\n",
+        "    '% of Total Values', ascending = False).round(1)\n",
+        "\n",
+        "    # Print\n",
+        "    print('Your selected dataframe has ' + str(df.shape[1]) + ' coumns. \\n'\n",
+        "         \"There are \" + str(mis_val_table_ren_columns.shape[0]) +\n",
+        "         'columns that have missing values')\n",
+        "\n",
+        "    # Return\n",
+        "    return mis_val_table_ren_columns"
+      ],
+      "metadata": {
+        "id": "iOnJJ-AwuDUY"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "When we will make the machine learning models, we will have to fill in these missing values(known as imputation). In later work, we will use models such as XGBoost that can handle missing values with no need for imputation. Another option would be to drop columns with a high percentage of missing values, although it is impossible to know ahead of time if these columns will be helpful to our model. Therefore, we will keep all of the columns for now."
+      ],
+      "metadata": {
+        "id": "mFN3KyyACEHi"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "missing_values = missing_values_table(app_train)\n",
+        "missing_values.head(20)"
+      ],
+      "metadata": {
+        "id": "u_Lf8dLtuDSP"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Column Types\n",
+        "Let's look at the number of columns of each data type. int64 and float 64 are numeric variables(which can be either discrete or continuous). object columns contain strings and are categorical features."
+      ],
+      "metadata": {
+        "id": "ZjzgByr7CaA3"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Number of each type of column\n",
+        "app_train.dtypes.value_counts()"
+      ],
+      "metadata": {
+        "id": "SKPXugw1uDPu"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "Let's now look at the number of unique entries in each of the object (categorical) columns."
+      ],
+      "metadata": {
+        "id": "W9ESi6WhCoiW"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# object\n",
+        "app_train.select_dtypes('object').apply(pd.Series.nunique, axis=0)"
+      ],
+      "metadata": {
+        "id": "WCQeN0N4uDNt"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Create a label encoder object\n",
+        "le = LabelEncoder()\n",
+        "le_count = 0\n",
+        "\n",
+        "# Iterate through the columns\n",
+        "for col in app_train:\n",
+        "    if app_train[col].dtype == 'object':\n",
+        "        # If 2 or fewer unique categories\n",
+        "        if len(list(app_train[col].unique())) <=2:\n",
+        "            le.fit(app_train[col])\n",
+        "            app_train[col] = le.transform(app_train[col])\n",
+        "            app_test[col] = le.transform(app_test[col])\n",
+        "\n",
+        "            le_count +=1\n",
+        "print('%d columns were label encoded.' % le_count)"
+      ],
+      "metadata": {
+        "id": "sr7lE1RzuDKq"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# one-hot encoding\n",
+        "app_train = pd.get_dummies(app_train)\n",
+        "app_test = pd.get_dummies(app_test)\n",
+        "\n",
+        "print('Training Features shpae:', app_train.shape)\n",
+        "print('Testing Features shpae:', app_test.shape)"
+      ],
+      "metadata": {
+        "id": "1VFjgHeCuDIG"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "train_labels = app_train['TARGET']\n",
+        "\n",
+        "# Align the training and testing data, keep only columns present in both dataframes\n",
+        "app_train, app_test = app_train.align(app_test, join = 'inner', axis = 1)\n",
+        "\n",
+        "# Add the target back in\n",
+        "app_train['TARGET'] = train_labels\n",
+        "\n",
+        "print('Training Features shape: ', app_train.shape)\n",
+        "print('Testing Features shape: ', app_test.shape)"
+      ],
+      "metadata": {
+        "id": "vhE3ETAeuDFX"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['DAYS_BIRTH'].describe()"
+      ],
+      "metadata": {
+        "id": "SgbVHuxcuDCd"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "(app_train['DAYS_BIRTH'] / -365).describe()"
+      ],
+      "metadata": {
+        "id": "HMEwBvDnuCxl"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['DAYS_EMPLOYED'].describe()"
+      ],
+      "metadata": {
+        "id": "H4zRc3PZu0ep"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['DAYS_EMPLOYED'].plot.hist(title = 'Days Employment Histogram');\n",
+        "plt.xlabel('Days Employment');"
+      ],
+      "metadata": {
+        "id": "qMFbZ2tsu0bV"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# DAYS_EMPLOYED max = 365243\n",
+        "anom = app_train[app_train['DAYS_EMPLOYED'] ==365243]\n",
+        "non_anom = app_train[app_train['DAYS_EMPLOYED'] != 365243]\n",
+        "\n",
+        "print('The non-anomalies defalut on %0.2f%% of loans' %(100* non_anom['TARGET'].mean()))\n",
+        "print('The anomalies default on %0.2f%% of loans' % (100 * anom['TARGET'].mean()))\n",
+        "print('There are %d anomalous days of employment' % len(anom))"
+      ],
+      "metadata": {
+        "id": "fopAEJXUu0ZL"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Create an anomalous flag column\n",
+        "app_train['DAYS_EMPLOYED_ANOM'] = app_train['DAYS_EMPLOYED'] == 365243\n",
+        "\n",
+        "# Replace nan\n",
+        "app_train['DAYS_EMPLOYED'].replace({365243: np.nan}, inplace = True)\n",
+        "\n",
+        "app_train['DAYS_EMPLOYED'].plot.hist(title = 'Days Employment Histogram');\n",
+        "plt.xlabel('Days Employment');"
+      ],
+      "metadata": {
+        "id": "BrFM0VO9u0Wx"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_test['DAYS_EMPLOYED_ANOM']=app_test['DAYS_EMPLOYED']==365243\n",
+        "app_test['DAYS_EMPLOYED'].replace({365243:np.nan}, inplace=True)\n",
+        "\n",
+        "print('There are %d anomalies in the test data out of %d entries'%(app_test['DAYS_EMPLOYED_ANOM'].sum(), len(app_test)))"
+      ],
+      "metadata": {
+        "id": "5GUBnOhOu0Un"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "correlations = app_train.corr()['TARGET'].sort_values()\n",
+        "\n",
+        "# Display correlations\n",
+        "print('Most Positive Correlations:\\n', correlations.tail(15))\n",
+        "print('\\nMost Negative Correlations:\\n', correlations.head(15))"
+      ],
+      "metadata": {
+        "id": "1JpQlrIVu0SO"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train['DAYS_BIRTH'] = abs(app_train['DAYS_BIRTH'])\n",
+        "app_train['DAYS_BIRTH'].corr(app_train['TARGET'])"
+      ],
+      "metadata": {
+        "id": "FYkvkCW-u0QM"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.style.use('fivethirtyeight')\n",
+        "\n",
+        "plt.hist(app_train['DAYS_BIRTH'] / 365, edgecolor='k',bins= 25)\n",
+        "plt.title('Age of Client'); plt.xlabel('Age (years)'); plt.ylabel('Count');"
+      ],
+      "metadata": {
+        "id": "Vb2F1mDDu0Ne"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize=(10,8))\n",
+        "\n",
+        "# repaid on time\n",
+        "sns.kdeplot(app_train.loc[app_train['TARGET'] == 0, 'DAYS_BIRTH']/365, label = 'target == 0')\n",
+        "\n",
+        "# not repaid\n",
+        "sns.kdeplot(app_train.loc[app_train['TARGET'] == 1, 'DAYS_BIRTH'] / 365, label = 'target == 1')\n",
+        "\n",
+        "# Labeling of plot\n",
+        "plt.xlabel('Age (years)'); plt.ylabel('Density'); plt.title('Distribution of Ages');"
+      ],
+      "metadata": {
+        "id": "awfz7QdVu0LF"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# age\n",
+        "age_data = app_train[['TARGET', 'DAYS_BIRTH']]\n",
+        "age_data['YEARS_BIRTH'] = age_data['DAYS_BIRTH'] / 365\n",
+        "\n",
+        "age_data['YEARS_BINNED'] = pd.cut(age_data['YEARS_BIRTH'], bins = np.linspace(20,70,num=11))\n",
+        "age_data.head(10)"
+      ],
+      "metadata": {
+        "id": "ME9Qo9GHu0Ip"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Group by the bin and calculate averages\n",
+        "age_groups = age_data.groupby('YEARS_BINNED').mean()\n",
+        "age_groups"
+      ],
+      "metadata": {
+        "id": "514guk-pvWi9"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize = (8, 8))\n",
+        "\n",
+        "# Graph the age bins and the average of the target as a bar plot\n",
+        "\n",
+        "plt.bar(age_groups.index.astype(str), 100 * age_groups['TARGET'])\n",
+        "\n",
+        "# Plot labeling\n",
+        "plt.xticks(rotation = 75); plt.xlabel('Age Group (years)'); plt.ylabel('Failure to Repay (%)')\n",
+        "plt.title('Failure to Repay by Age Group');"
+      ],
+      "metadata": {
+        "id": "nYruYK4OvWfb"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Extract the EXT_SOURCE variables and show correlations\n",
+        "ext_data = app_train[['TARGET', 'EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'DAYS_BIRTH']]\n",
+        "ext_data_corrs = ext_data.corr()\n",
+        "ext_data_corrs"
+      ],
+      "metadata": {
+        "id": "eY6UAv5JvWdX"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize = (8,6))\n",
+        "\n",
+        "# Heatmap\n",
+        "sns.heatmap(ext_data_corrs, cmap=plt.cm.RdYlBu_r, vmin = -0.25, annot = True, vmax = 0.6)\n",
+        "#cmap = color\n",
+        "plt.title('Correlation Heatmap');"
+      ],
+      "metadata": {
+        "id": "kbppugcEvWbK"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize = (10,12))\n",
+        "\n",
+        "# iterate through the sources\n",
+        "for i, source in enumerate(['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3']):\n",
+        "\n",
+        "    # create a new subplot for each source\n",
+        "    plt.subplot(3,1, i+1)\n",
+        "\n",
+        "    # plot repaid loans\n",
+        "    sns.kdeplot(app_train.loc[app_train['TARGET']==0, source], label = 'target==0')\n",
+        "\n",
+        "    # plot not repaid\n",
+        "    sns.kdeplot(app_train.loc[app_train['TARGET']==1, source], label = 'target==1')\n",
+        "\n",
+        "    # label\n",
+        "    plt.title('Distribution of %s by TARGET Value' % source)\n",
+        "    plt.xlabel('%s'% source); plt.ylabel('Density');\n",
+        "    plt.tight_layout(h_pad = 2.5)"
+      ],
+      "metadata": {
+        "id": "mc52h6WDvWYz"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# copy the data for plotting\n",
+        "plot_data = ext_data.drop(columns = ['DAYS_BIRTH']).copy()\n",
+        "\n",
+        "# Add in the age of the client in years\n",
+        "plot_data['YEARS_BIRTH'] = age_data['YEARS_BIRTH']\n",
+        "\n",
+        "# Drop na values and limit to first 100000 rows\n",
+        "\n",
+        "plot_data = plot_data.dropna().loc[:100000, :]\n",
+        "\n",
+        "# Function to calculate correlation coefficient between two columns\n",
+        "\n",
+        "def corr_func(x, y, **kwargs):\n",
+        "    r = np.corrcoef(x, y)[0][1]\n",
+        "    ax = plt.gca()\n",
+        "    ax.annotate(\"r = {:.2f}\".format(r),\n",
+        "                xy=(.2, .8), xycoords=ax.transAxes,\n",
+        "                size = 20)\n",
+        "\n",
+        "\n",
+        "# Create the pairgrid object\n",
+        "\n",
+        "grid = sns.PairGrid(data = plot_data, size = 3, diag_sharey=False,\n",
+        "                    hue = 'TARGET',\n",
+        "                    vars = [x for x in list(plot_data.columns) if x != 'TARGET'])\n",
+        "\n",
+        "# Upper is a scatter plot\n",
+        "grid.map_upper(plt.scatter, alpha = 0.2)\n",
+        "\n",
+        "# Diagonal is a histogram\n",
+        "grid.map_diag(sns.kdeplot)\n",
+        "\n",
+        "# Bottom is density plot\n",
+        "grid.map_lower(sns.kdeplot, cmap = plt.cm.OrRd_r);\n",
+        "\n",
+        "plt.suptitle('Ext Source and Age Features Pairs Plot', size = 32, y = 1.05);"
+      ],
+      "metadata": {
+        "id": "WBcX5RBnvWWv"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Make a new dataframe for polynomial features\n",
+        "poly_features = app_train[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'DAYS_BIRTH', 'TARGET']]\n",
+        "poly_features_test = app_test[['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'DAYS_BIRTH']]\n",
+        "\n",
+        "\n",
+        "from sklearn.impute import SimpleImputer\n",
+        "imputer = SimpleImputer(strategy='median')\n",
+        "\n",
+        "poly_target=poly_features['TARGET']\n",
+        "\n",
+        "poly_features=poly_features.drop(columns=['TARGET'])\n",
+        "\n",
+        "# train > fit_transform, test > transform\n",
+        "poly_features=imputer.fit_transform(poly_features)\n",
+        "poly_features_test=imputer.transform(poly_features_test)\n",
+        "\n",
+        "from sklearn.preprocessing import PolynomialFeatures\n",
+        "\n",
+        "# Create the polynomial object with specified degree\n",
+        "poly_transformer = PolynomialFeatures(degree = 3)"
+      ],
+      "metadata": {
+        "id": "kvQr5mpovWT2"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Train the polynomial features\n",
+        "poly_transformer.fit(poly_features)\n",
+        "\n",
+        "# Transform the features\n",
+        "poly_features = poly_transformer.transform(poly_features)\n",
+        "poly_features_test = poly_transformer.transform(poly_features_test)\n",
+        "print('Polynomial Features shape: ', poly_features.shape)"
+      ],
+      "metadata": {
+        "id": "kfsFX3rbvWRi"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "poly_transformer.get_feature_names(input_features = ['EXT_SOURCE_1', 'EXT_SOURCE_2', 'EXT_SOURCE_3', 'DAYS_BIRTH'])[:15]"
+      ],
+      "metadata": {
+        "id": "OmwtfiULvWPP"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Create a dataframe of the features\n",
+        "poly_features = pd.DataFrame(poly_features, columns = poly_transformer.get_feature_names(['EXT_SOURCE_1', 'EXT_SOURCE_2',\n",
+        "                                                                           'EXT_SOURCE_3', 'DAYS_BIRTH']))\n",
+        "\n",
+        "# Add in the target\n",
+        "poly_features['TARGET'] = poly_target\n",
+        "\n",
+        "# Find the correlations with the target\n",
+        "poly_corrs = poly_features.corr()['TARGET'].sort_values()\n",
+        "\n",
+        "# Display most negative and most positive\n",
+        "print(poly_corrs.head(10))\n",
+        "print(poly_corrs.tail(5))\n"
+      ],
+      "metadata": {
+        "id": "AstiKr1avWNI"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "ext_data_corrs\n",
+        "# original corr"
+      ],
+      "metadata": {
+        "id": "eqOjc9azvWKe"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# Put test features into dataframe\n",
+        "poly_features_test = pd.DataFrame(poly_features_test,\n",
+        "                                  columns = poly_transformer.get_feature_names(['EXT_SOURCE_1', 'EXT_SOURCE_2',\n",
+        "                                                                                'EXT_SOURCE_3', 'DAYS_BIRTH']))\n",
+        "\n",
+        "# Merge polynomial features into training dataframe\n",
+        "poly_features['SK_ID_CURR'] = app_train['SK_ID_CURR']\n",
+        "app_train_poly = app_train.merge(poly_features, on = 'SK_ID_CURR', how = 'left')\n",
+        "\n",
+        "# Merge polnomial features into testing dataframe\n",
+        "poly_features_test['SK_ID_CURR'] = app_test['SK_ID_CURR']\n",
+        "app_test_poly = app_test.merge(poly_features_test, on = 'SK_ID_CURR', how = 'left')\n",
+        "\n",
+        "# Align the dataframes\n",
+        "app_train_poly, app_test_poly = app_train_poly.align(app_test_poly, join = 'inner', axis = 1)\n",
+        "\n",
+        "# Print out the new shapes\n",
+        "print('Training data with polynomial features shape: ', app_train_poly.shape)\n",
+        "print('Testing data with polynomial features shape:  ', app_test_poly.shape)"
+      ],
+      "metadata": {
+        "id": "fyLFVh2avWH-"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train_domain = app_train.copy()\n",
+        "app_test_domain = app_test.copy()\n",
+        "\n",
+        "app_train_domain['CREDIT_INCOME_PERCENT'] = app_train_domain['AMT_CREDIT'] / app_train_domain['AMT_INCOME_TOTAL']\n",
+        "\n",
+        "app_train_domain['ANNUITY_INCOME_PERCENT'] = app_train_domain['AMT_ANNUITY'] / app_train_domain['AMT_INCOME_TOTAL']\n",
+        "\n",
+        "app_train_domain['CREDIT_TERM'] = app_train_domain['AMT_ANNUITY'] / app_train_domain['AMT_CREDIT']\n",
+        "\n",
+        "app_train_domain['DAYS_EMPLOYED_PERCENT'] = app_train_domain['DAYS_EMPLOYED'] / app_train_domain['DAYS_BIRTH']"
+      ],
+      "metadata": {
+        "id": "BmefE2sNwH_l"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_test_domain['CREDIT_INCOME_PERCENT'] = app_test_domain['AMT_CREDIT'] / app_test_domain['AMT_INCOME_TOTAL']\n",
+        "\n",
+        "app_test_domain['ANNUITY_INCOME_PERCENT'] = app_test_domain['AMT_ANNUITY'] / app_test_domain['AMT_INCOME_TOTAL']\n",
+        "\n",
+        "app_test_domain['CREDIT_TERM'] = app_test_domain['AMT_ANNUITY'] / app_test_domain['AMT_CREDIT']\n",
+        "\n",
+        "app_test_domain['DAYS_EMPLOYED_PERCENT'] = app_test_domain['DAYS_EMPLOYED'] / app_test_domain['DAYS_BIRTH']"
+      ],
+      "metadata": {
+        "id": "_ane6c-XwH0r"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "plt.figure(figsize = (12,20))\n",
+        "\n",
+        "# iterate through the new features\n",
+        "for i, feature in enumerate(['CREDIT_INCOME_PERCENT', 'ANNUITY_INCOME_PERCENT', 'CREDIT_TERM', 'DAYS_EMPLOYED_PERCENT']):\n",
+        "\n",
+        "    plt.subplot(4,1, i+1)\n",
+        "\n",
+        "    sns.kdeplot(app_train_domain.loc[app_train_domain['TARGET'] == 0, feature], label = 'target == 0')\n",
+        "    sns.kdeplot(app_train_domain.loc[app_train_domain['TARGET'] == 1, feature], label = 'target == 1')\n",
+        "\n",
+        "    plt.title('Distribution of %s by Target Value' % feature)\n",
+        "    plt.xlabel('%s' % feature); plt.ylabel('Density');\n",
+        "\n",
+        "plt.tight_layout(h_pad = 2.5)"
+      ],
+      "metadata": {
+        "id": "-T_aHE5swHpX"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.preprocessing import MinMaxScaler\n",
+        "from sklearn.impute import SimpleImputer\n",
+        "\n",
+        "# training\n",
+        "if 'TARGET' in app_train:\n",
+        "    train=app_train.drop(columns=['TARGET'])\n",
+        "else:\n",
+        "    train=app_train.copy()\n",
+        "\n",
+        "features=list(train.columns)\n",
+        "\n",
+        "# testing\n",
+        "test=app_test.copy()\n",
+        "\n",
+        "imputer = SimpleImputer(strategy='median')\n",
+        "\n",
+        "scaler=MinMaxScaler(feature_range=(0,1))\n",
+        "\n",
+        "# training fit\n",
+        "imputer.fit(train)\n",
+        "\n",
+        "# training testing transform\n",
+        "## imputer  DataFrame array\n",
+        "train=imputer.transform(train)\n",
+        "test=imputer.transform(test)\n",
+        "\n",
+        "# Scaling\n",
+        "scaler.fit(train)\n",
+        "train=scaler.transform(train)\n",
+        "test=scaler.transform(test)\n",
+        "\n",
+        "print('Training data shape: ', train.shape)\n",
+        "print('Testing data shape: ', test.shape)"
+      ],
+      "metadata": {
+        "id": "4rP8yhPKwHa5"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.linear_model import LogisticRegression\n",
+        "\n",
+        "# with specified reqularization parameter\n",
+        "log_reg = LogisticRegression(C = 0.0001)\n",
+        "\n",
+        "# Train\n",
+        "log_reg.fit(train, train_labels)"
+      ],
+      "metadata": {
+        "id": "hzghZjAiwHIs"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# make predictions\n",
+        "# make sure to select the second column only\n",
+        "log_reg_pred = log_reg.predict_proba(test)[:,1]"
+      ],
+      "metadata": {
+        "id": "V1RMEYXEwn3x"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Using Random Forest\n"
+      ],
+      "metadata": {
+        "id": "BMvfpxBDwyuG"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "from sklearn.ensemble import RandomForestClassifier\n",
+        "\n",
+        "# Make the random forest classifier\n",
+        "random_forest = RandomForestClassifier(n_estimators = 100, random_state = 50, verbose = 1, n_jobs = -1)"
+      ],
+      "metadata": {
+        "id": "HdhgDK0jwpxq"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# train\n",
+        "random_forest.fit(train, train_labels)\n",
+        "\n",
+        "# Extract feature importances\n",
+        "feature_importance_values = random_forest.feature_importances_\n",
+        "feature_importances = pd.DataFrame({'feature': features, 'importance': feature_importance_values})\n",
+        "\n",
+        "# make predictions on the test data\n",
+        "predictions = random_forest.predict_proba(test)[:,1]"
+      ],
+      "metadata": {
+        "id": "qDTC-KVow6O3"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# make submission dataframe\n",
+        "submit = app_test[['SK_ID_CURR']]\n",
+        "submit['TARGET'] = predictions\n",
+        "\n",
+        "# Save the submission dataframe\n",
+        "submit.to_csv('random_forest_baseline.csv', index = False)"
+      ],
+      "metadata": {
+        "id": "OadyMKoJw6K8"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "poly_features_names = list(app_train_poly.columns)\n",
+        "\n",
+        "# Impute the polynomial features\n",
+        "imputer = SimpleImputer(strategy = 'median')\n",
+        "\n",
+        "poly_features = imputer.fit_transform(app_train_poly)\n",
+        "poly_features_test = imputer.transform(app_test_poly)\n",
+        "\n",
+        "# Scale the polynomial features\n",
+        "scaler = MinMaxScaler(feature_range = (0, 1))\n",
+        "\n",
+        "poly_features = scaler.fit_transform(poly_features)\n",
+        "poly_features_test = scaler.transform(poly_features_test)\n",
+        "\n",
+        "random_forest_poly = RandomForestClassifier(n_estimators = 100, random_state = 50, verbose = 1, n_jobs = -1)"
+      ],
+      "metadata": {
+        "id": "hDy4lxQQw6Ib"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "# training data\n",
+        "random_forest_poly.fit(poly_features, train_labels)\n",
+        "​\n",
+        "# test\n",
+        "predictions = random_forest_poly.predict_proba(poly_features_test)[:, 1]"
+      ],
+      "metadata": {
+        "id": "nj067NPLw6GC"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [],
+      "metadata": {
+        "id": "gwFZ3XJJxQjW"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train_domain.head()"
+      ],
+      "metadata": {
+        "id": "Fg4H8CIpw5-5"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "app_train_domain = app_train_domain.drop(columns = 'TARGET')\n",
+        "\n",
+        "domain_features_names = list(app_train_domain.columns)\n",
+        "\n",
+        "# Impute the domainnomial features\n",
+        "imputer = SimpleImputer(strategy = 'median')\n",
+        "\n",
+        "domain_features = imputer.fit_transform(app_train_domain)\n",
+        "domain_features_test = imputer.transform(app_test_domain)\n",
+        "\n",
+        "# Scale the domainnomial features\n",
+        "scaler = MinMaxScaler(feature_range = (0, 1))\n",
+        "\n",
+        "domain_features = scaler.fit_transform(domain_features)\n",
+        "domain_features_test = scaler.transform(domain_features_test)\n",
+        "\n",
+        "random_forest_domain = RandomForestClassifier(n_estimators = 100, random_state = 50, verbose = 1, n_jobs = -1)\n",
+        "\n",
+        "# Train on the training data\n",
+        "random_forest_domain.fit(domain_features, train_labels)\n",
+        "\n",
+        "# Extract feature importances\n",
+        "feature_importance_values_domain = random_forest_domain.feature_importances_\n",
+        "feature_importances_domain = pd.DataFrame({'feature': domain_features_names, 'importance': feature_importance_values_domain})\n",
+        "\n",
+        "# Make predictions on the test data\n",
+        "predictions = random_forest_domain.predict_proba(domain_features_test)[:, 1]"
+      ],
+      "metadata": {
+        "id": "JChXGgxMxSGy"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "markdown",
+      "source": [
+        "# Model Interpretation: Feature Importance"
+      ],
+      "metadata": {
+        "id": "9oeZidVcxevk"
+      }
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "def plot_feature_importances(df):\n",
+        "    '''\n",
+        "    feature\n",
+        "\n",
+        "    (Args) : df(dataframe) : feature importances\n",
+        "\n",
+        "    (Return): 15 feature\n",
+        "​\n",
+        "    '''\n",
+        "\n",
+        "    df = df.sort_values('importance', ascending = False).reset_index()\n",
+        "\n",
+        "\n",
+        "    df['importance_normalized'] = df['importance'] / df['importance'].sum()\n",
+        "\n",
+        "    plt.figure(figsize=(10,6))\n",
+        "    ax=plt.subplot()\n",
+        "\n",
+        "    ax.barh(list(reversed(list(df.index[:15]))), df['importance_normalized'].head(15), align='center',edgecolor='k')\n",
+        "\n",
+        "    # Set the yticks and labels\n",
+        "    ax.set_yticks(list(reversed(list(df.index[:15]))))\n",
+        "    ax.set_yticklabels(df['feature'].head(15))\n",
+        "\n",
+        "    # Plot labeling\n",
+        "    plt.xlabel('Normalized Importance'); plt.title('Feature Importances')\n",
+        "    plt.show()\n",
+        "\n",
+        "    return df\n",
+        ""
+      ],
+      "metadata": {
+        "id": "s89fuGn-xSDd"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [
+        "feature_importances_domain_sorted = plot_feature_importances(feature_importances_domain)"
+      ],
+      "metadata": {
+        "id": "3hbWawRRxSAW"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "4ZZUT89ax51d"
+      },
+      "execution_count": null,
+      "outputs": []
+    },
+    {
+      "cell_type": "code",
+      "source": [],
+      "metadata": {
+        "id": "rwoBHzpzx5qo"
+      },
+      "execution_count": null,
+      "outputs": []
+    }
+  ]
+}
